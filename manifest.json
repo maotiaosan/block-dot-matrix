@@ -1,0 +1,48 @@
+{
+  "app": "blockmd",
+  "schema_version": 1,
+  "id": "block-dot-matrix",
+  "name": {
+    "zh": "点阵阅读",
+    "en": "Dot Matrix"
+  },
+  "version": "1.0.0",
+  "author": "maotiaosan",
+  "repo": "maotiaosan/block-dot-matrix",
+  "summary": {
+    "zh": "面向视障与弱视用户的盲文点阵转换、防串行高对比阅读页与触觉点阵导出",
+    "en": "Braille dot-matrix conversion, high-contrast dot-grid reader, and tactile SVG export"
+  },
+  "entry": {
+    "command": [
+      "python3",
+      "-u",
+      "main.py"
+    ]
+  },
+  "permissions": [
+    "storage",
+    "notes:read",
+    "notes:write",
+    "events:note_saved"
+  ],
+  "surfaces": [
+    "settings_page"
+  ],
+  "icon": {
+    "view_box": "0 0 24 24",
+    "fill_paths": [
+      "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z"
+    ],
+    "stroke_paths": [
+      "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z",
+      "M9 8.5m-1.1 0a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0",
+      "M9 12m-1.1 0a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0",
+      "M15 15.5m-1.1 0a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0"
+    ],
+    "accent_paths": [
+      "M15 8.5m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0",
+      "M9 15.5m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0"
+    ]
+  }
+}
