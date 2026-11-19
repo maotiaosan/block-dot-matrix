@@ -3,15 +3,15 @@
   "schema_version": 1,
   "id": "block-dot-matrix",
   "name": {
-    "zh": "点阵阅读",
-    "en": "Dot Matrix"
+    "zh": "画布点阵",
+    "en": "Canvas Dots"
   },
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "maotiaosan",
   "repo": "maotiaosan/block-dot-matrix",
   "summary": {
-    "zh": "面向视障与弱视用户的盲文点阵转换、防串行高对比阅读页与触觉点阵导出",
-    "en": "Braille dot-matrix conversion, high-contrast dot-grid reader, and tactile SVG export"
+    "zh": "复刻 Thinkly 编辑器无/方格/点阵画布背景，提供高对比度点阵阅读与防串行辅助",
+    "en": "Thinkly-style Off, Grid, and Dots editor canvas patterns with low-vision contrast options"
   },
   "entry": {
     "command": [
@@ -22,9 +22,7 @@
   },
   "permissions": [
     "storage",
-    "notes:read",
-    "notes:write",
-    "events:note_saved"
+    "notes:read"
   ],
   "surfaces": [
     "settings_page"
@@ -36,13 +34,17 @@
     ],
     "stroke_paths": [
       "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z",
-      "M9 8.5m-1.1 0a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0",
-      "M9 12m-1.1 0a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0",
-      "M15 15.5m-1.1 0a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0"
+      "M8.5 8.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M12 8.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M15.5 8.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M8.5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M15.5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M8.5 15.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M12 15.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M15.5 15.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"
     ],
     "accent_paths": [
-      "M15 8.5m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0",
-      "M9 15.5m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0"
+      "M12 12m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0"
     ]
   }
 }

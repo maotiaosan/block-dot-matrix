@@ -6,95 +6,92 @@ import os
 import re
 import sys
 
-MARKER_START = "<!-- block-dot-matrix:start -->"
-MARKER_END = "<!-- block-dot-matrix:end -->"
-
-# Standard Grade-1 6-dot Braille Unicode characters (U+2800..U+283F)
-BRAILLE_ALPHA = {
-    "a": "\u2801", "b": "\u2803", "c": "\u2809", "d": "\u2819", "e": "\u2811",
-    "f": "\u280b", "g": "\u281b", "h": "\u2813", "i": "\u280a", "j": "\u281a",
-    "k": "\u2805", "l": "\u2807", "m": "\u280d", "n": "\u281d", "o": "\u2815",
-    "p": "\u280f", "q": "\u281f", "r": "\u2817", "s": "\u280e", "t": "\u281e",
-    "u": "\u2825", "v": "\u2827", "w": "\u283a", "x": "\u282d", "y": "\u283d",
-    "z": "\u2835",
+GRID_MODES = {
+    "off": {"label": "无", "en": "None", "desc": "纯净纸面，无背景网格"},
+    "grid": {"label": "方格", "en": "Grid", "desc": "与正文字号和行高对齐的等距方格线"},
+    "dots": {"label": "点阵", "en": "Dots", "desc": "Thinkly 风格点阵纸背景，辅助视线水平追踪"},
 }
 
-BRAILLE_DIGITS = {
-    "1": "\u2801", "2": "\u2803", "3": "\u2809", "4": "\u2819", "5": "\u2811",
-    "6": "\u280b", "7": "\u281b", "8": "\u2813", "9": "\u280a", "0": "\u281a",
-}
-
-BRAILLE_PUNCT = {
-    ",": "\u2802", ";": "\u2806", ":": "\u2812", ".": "\u2832", "!": "\u2816",
-    "?": "\u2826", "-": "\u2824", "(": "\u2836", ")": "\u2836", "/": "\u280c",
-    "'": "\u2804", '"': "\u2826",
-    "，": "\u2802", "。": "\u2832", "！": "\u2816", "？": "\u2826",
-    "：": "\u2812", "；": "\u2806", "、": "\u2802", "（": "\u2836", "）": "\u2836",
-    "「": "\u2826", "」": "\u2834", "《": "\u2826", "》": "\u2834",
-}
-
-CAPITAL_SIGN = "\u2820"
-NUMBER_SIGN = "\u283c"
-
-PALETTES = {
-    "amber_dark": {
-        "name": "暗夜金黄",
-        "contrast": "AAA 15.8:1",
-        "preview_palette": "ink",
-        "bg": "#0b0d12",
-        "panel": "#131722",
-        "box": "#090b10",
-        "fg": "#fff9e6",
-        "sub": "#d7deea",
-        "accent": "#ffe066",
-        "accent_ink": "#0b0d12",
-        "border": "rgba(255, 224, 102, 0.44)",
-        "focus_bg": "rgba(255, 224, 102, 0.14)",
-        "dot": "rgba(255, 224, 102, 0.25)",
+CONTRAST_LEVELS = {
+    "subtle": {
+        "label": "柔和（Thinkly 默认）",
+        "line_alpha": 0.07,
+        "dot_alpha": 0.16,
+        "dot_radius": 1.1,
+        "rating": "标准纸感",
     },
-    "mono_dark": {
-        "name": "纯黑亮白",
-        "contrast": "AAA 21.0:1",
-        "preview_palette": "ink",
-        "bg": "#000000",
-        "panel": "#111111",
-        "box": "#080808",
-        "fg": "#ffffff",
-        "sub": "#e2e8f0",
-        "accent": "#93c5fd",
-        "accent_ink": "#000000",
-        "border": "rgba(255, 255, 255, 0.48)",
-        "focus_bg": "rgba(147, 197, 253, 0.16)",
-        "dot": "rgba(255, 255, 255, 0.28)",
+    "clear": {
+        "label": "清晰增强",
+        "line_alpha": 0.14,
+        "dot_alpha": 0.28,
+        "dot_radius": 1.5,
+        "rating": "弱视友好 AA+",
     },
-    "navy_light": {
-        "name": "深海暖白",
-        "contrast": "AAA 14.2:1",
+    "high": {
+        "label": "视障高对比",
+        "line_alpha": 0.24,
+        "dot_alpha": 0.42,
+        "dot_radius": 1.9,
+        "rating": "视障增强 AAA",
+    },
+}
+
+PAPER_THEMES = {
+    "paper": {
+        "label": "浅色纸面",
         "preview_palette": "paper",
-        "bg": "#f7f9fc",
-        "panel": "#ffffff",
-        "box": "#edf2fa",
-        "fg": "#0b1324",
-        "sub": "#2b3a55",
-        "accent": "#1d4ed8",
+        "bg": "#ffffff",
+        "surface": "#fbfbfc",
+        "fg": "#181c24",
+        "sub": "#4b5563",
+        "rgb": "24, 28, 36",
+        "accent": "#2f56a6",
         "accent_ink": "#ffffff",
-        "border": "rgba(29, 78, 216, 0.38)",
-        "focus_bg": "rgba(29, 78, 216, 0.10)",
-        "dot": "rgba(15, 39, 86, 0.22)",
+        "border": "#dce1ea",
+        "focus_bg": "rgba(47, 86, 166, 0.08)",
+    },
+    "warm": {
+        "label": "暖色护眼",
+        "preview_palette": "warm",
+        "bg": "#faf6ee",
+        "surface": "#f5efe2",
+        "fg": "#241d15",
+        "sub": "#5b4e3e",
+        "rgb": "36, 29, 21",
+        "accent": "#9a5210",
+        "accent_ink": "#ffffff",
+        "border": "#e1d6c3",
+        "focus_bg": "rgba(154, 82, 16, 0.09)",
+    },
+    "dark_hc": {
+        "label": "暗夜高对比",
+        "preview_palette": "ink",
+        "bg": "#0c0f16",
+        "surface": "#121722",
+        "fg": "#fff8dc",
+        "sub": "#cbd5e1",
+        "rgb": "255, 224, 102",
+        "accent": "#ffe066",
+        "accent_ink": "#0c0f16",
+        "border": "rgba(255, 224, 102, 0.36)",
+        "focus_bg": "rgba(255, 224, 102, 0.12)",
     },
 }
 
-DENSITY_PX = {"loose": 24, "medium": 18, "dense": 14}
-FONT_SCALE_PX = {"normal": 22, "large": 26, "xlarge": 32}
+DENSITY_CONFIG = {
+    "compact": {"label": "紧凑 24px", "font_px": 15, "line_height": 1.6, "grid_px": 24},
+    "standard": {"label": "标准 30px", "font_px": 17, "line_height": 1.75, "grid_px": 30},
+    "relaxed": {"label": "宽松 38px", "font_px": 21, "line_height": 1.8, "grid_px": 38},
+}
 
 DEFAULT_CONFIG = {
     "target_note": "__active__",
-    "mode": "hybrid",
-    "palette": "amber_dark",
-    "dot_density": "medium",
-    "font_scale": "large",
-    "auto_sync_note": False,
-    "speech_assist": True,
+    "grid_mode": "dots",
+    "contrast_level": "clear",
+    "paper_theme": "paper",
+    "grid_density": "standard",
+    "line_focus_guide": True,
+    "large_text_boost": False,
 }
 
 
@@ -108,52 +105,6 @@ def sanitize_filename(name):
     return cleaned or "note"
 
 
-def strip_embedded_block(content):
-    pattern = re.compile(
-        r"\n*" + re.escape(MARKER_START) + r".*?" + re.escape(MARKER_END) + r"\n*",
-        re.DOTALL,
-    )
-    return pattern.sub("\n", content or "").rstrip()
-
-
-def cjk_to_braille_cells(ch):
-    """Deterministic 2-cell 6-dot Braille encoding for CJK characters so every glyph maps stably."""
-    cp = ord(ch)
-    low = (cp & 0x3F) or 0x01
-    high = ((cp >> 6) & 0x3F) or 0x02
-    return chr(0x2800 + high) + chr(0x2800 + low)
-
-
-def text_to_braille(text):
-    out = []
-    in_number = False
-    for ch in text:
-        if ch.isspace():
-            in_number = False
-            out.append(" ")
-            continue
-        if "0" <= ch <= "9":
-            if not in_number:
-                out.append(NUMBER_SIGN)
-                in_number = True
-            out.append(BRAILLE_DIGITS[ch])
-            continue
-        in_number = False
-        if "A" <= ch <= "Z":
-            out.append(CAPITAL_SIGN + BRAILLE_ALPHA[ch.lower()])
-        elif "a" <= ch <= "z":
-            out.append(BRAILLE_ALPHA[ch])
-        elif ch in BRAILLE_PUNCT:
-            out.append(BRAILLE_PUNCT[ch])
-        elif "\u4e00" <= ch <= "\u9fff":
-            out.append(cjk_to_braille_cells(ch))
-        elif 0x2800 <= ord(ch) <= 0x28FF:
-            out.append(ch)
-        else:
-            out.append(chr(0x2800 + ((ord(ch) & 0x3E) | 0x01)))
-    return re.sub(r" {2,}", " ", "".join(out)).strip()
-
-
 def clean_inline_markdown(line):
     s = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"[\1]", line)
     s = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", s)
@@ -163,10 +114,9 @@ def clean_inline_markdown(line):
 
 
 def parse_markdown_blocks(content):
-    cleaned = strip_embedded_block(content)
     blocks = []
     in_code = False
-    for raw in cleaned.splitlines():
+    for raw in (content or "").splitlines():
         line = raw.rstrip()
         if line.strip().startswith("```"):
             in_code = not in_code
@@ -174,454 +124,488 @@ def parse_markdown_blocks(content):
         if not line.strip():
             continue
         if in_code:
-            text = line.strip()
-            braille = "\u2828 " + text_to_braille(text)
-            blocks.append({"tag": "代码", "level": 0, "text": text, "braille": braille})
+            blocks.append({"kind": "code", "level": 0, "text": line})
             continue
         if re.match(r"^-{3,}$|^\*{3,}$|^_{3,}$", line.strip()):
-            blocks.append({
-                "tag": "分隔",
-                "level": 0,
-                "text": "----------------",
-                "braille": "\u283f\u283f\u283f\u283f\u283f\u283f",
-            })
+            blocks.append({"kind": "hr", "level": 0, "text": ""})
             continue
         m_head = re.match(r"^(#{1,6})\s+(.*)$", line)
         if m_head:
             lvl = len(m_head.group(1))
-            text = clean_inline_markdown(m_head.group(2))
-            prefix = "\u283f" * min(lvl, 3)
-            blocks.append({
-                "tag": f"H{lvl}",
-                "level": lvl,
-                "text": text,
-                "braille": f"{prefix} {text_to_braille(text)}".strip(),
-            })
+            blocks.append({"kind": "heading", "level": lvl, "text": clean_inline_markdown(m_head.group(2))})
             continue
         m_quote = re.match(r"^>\s?(.*)$", line)
         if m_quote:
-            text = clean_inline_markdown(m_quote.group(1))
-            blocks.append({
-                "tag": "引用",
-                "level": 0,
-                "text": text,
-                "braille": f"\u2807 {text_to_braille(text)}".strip(),
-            })
+            blocks.append({"kind": "quote", "level": 0, "text": clean_inline_markdown(m_quote.group(1))})
             continue
         m_list = re.match(r"^[-*+]\s+(.*)$|^\d+\.\s+(.*)$", line.strip())
         if m_list:
-            text = clean_inline_markdown(m_list.group(1) or m_list.group(2) or "")
-            blocks.append({
-                "tag": "列表",
-                "level": 0,
-                "text": text,
-                "braille": f"\u2815 {text_to_braille(text)}".strip(),
-            })
+            blocks.append({"kind": "list", "level": 0, "text": clean_inline_markdown(m_list.group(1) or m_list.group(2) or "")})
             continue
         text = clean_inline_markdown(line)
         if text:
-            blocks.append({
-                "tag": "正文",
-                "level": 0,
-                "text": text,
-                "braille": text_to_braille(text),
-            })
+            blocks.append({"kind": "paragraph", "level": 0, "text": text})
     return blocks
 
 
-def count_braille_cells(blocks):
-    return sum(1 for b in blocks for ch in b["braille"] if 0x2800 <= ord(ch) <= 0x28FF)
+def build_canvas_html(note_path, blocks, cfg):
+    mode = cfg.get("grid_mode", "dots")
+    if mode not in GRID_MODES:
+        mode = "dots"
+    contrast_key = cfg.get("contrast_level", "clear")
+    contrast = CONTRAST_LEVELS.get(contrast_key, CONTRAST_LEVELS["clear"])
+    theme_key = cfg.get("paper_theme", "paper")
+    theme = PAPER_THEMES.get(theme_key, PAPER_THEMES["paper"])
+    dens_key = cfg.get("grid_density", "standard")
+    dens = DENSITY_CONFIG.get(dens_key, DENSITY_CONFIG["standard"])
+    focus_guide = bool(cfg.get("line_focus_guide", True))
+    large_boost = bool(cfg.get("large_text_boost", False))
 
-
-def build_embedded_braille_section(blocks, mode):
-    lines = [
-        MARKER_START,
-        "## 无障碍盲文点阵速览",
-        "",
-    ]
-    for idx, blk in enumerate(blocks[:60], start=1):
-        prefix = f"{idx:02d} [{blk['tag']}]"
-        if mode == "braille":
-            lines.append(f"- `{prefix}` {blk['braille']}")
-        else:
-            lines.append(f"- `{prefix}` {blk['text']}")
-            lines.append(f"  `{blk['braille']}`")
-    lines.extend(["", MARKER_END])
-    return "\n".join(lines)
-
-
-def build_reader_html(note_path, blocks, cfg):
-    pal_key = cfg.get("palette", "amber_dark")
-    pal = PALETTES.get(pal_key, PALETTES["amber_dark"])
-    grid_px = DENSITY_PX.get(cfg.get("dot_density", "medium"), 18)
-    font_px = FONT_SCALE_PX.get(cfg.get("font_scale", "large"), 26)
-    mode = cfg.get("mode", "hybrid")
-    speech = bool(cfg.get("speech_assist", True))
-    show_braille = mode != "low_vision"
+    base_font = dens["font_px"] + (4 if large_boost else 0)
+    line_h = dens["line_height"]
+    grid_size = round(base_font * line_h, 2)
 
     title_esc = html.escape(note_path or "未命名笔记")
-    rows_html = []
+    rows = []
     for idx, blk in enumerate(blocks, start=1):
-        txt_esc = html.escape(blk["text"])
-        br_esc = html.escape(blk["braille"])
-        tag_esc = html.escape(blk["tag"])
-        is_heading = blk["level"] > 0
-        heading_cls = " is-heading" if is_heading else ""
-        braille_html = (
-            f'<div class="braille-line" aria-label="盲文点阵">{br_esc}</div>'
-            if show_braille
-            else ""
-        )
-        rows_html.append(
-            f'<article class="block-row{heading_cls}" tabindex="0" data-index="{idx}" '
-            f'aria-label="第 {idx} 段 {tag_esc} {txt_esc}">'
-            f'<div class="anchor-col" aria-hidden="true">'
-            f'<span class="line-num">{idx:02d}</span>'
-            f'<span class="anchor-dot"></span>'
-            f'<span class="line-tag">{tag_esc}</span>'
-            f'</div>'
-            f'<div class="content-col">'
-            f'<div class="text-line">{txt_esc}</div>'
-            f'{braille_html}'
-            f'</div>'
-            f'</article>'
+        if blk["kind"] == "hr":
+            rows.append('<hr class="doc-hr">')
+            continue
+        txt = html.escape(blk["text"])
+        if blk["kind"] == "heading":
+            lvl = min(max(blk["level"], 1), 3)
+            rows.append(
+                f'<div class="doc-block is-h{lvl}" tabindex="0" data-line="{idx}">'
+                f'<span class="line-anchor" aria-hidden="true">{idx:02d}</span>'
+                f'<h{lvl} class="block-text">{txt}</h{lvl}>'
+                f'</div>'
+            )
+        elif blk["kind"] == "quote":
+            rows.append(
+                f'<div class="doc-block is-quote" tabindex="0" data-line="{idx}">'
+                f'<span class="line-anchor" aria-hidden="true">{idx:02d}</span>'
+                f'<blockquote class="block-text">{txt}</blockquote>'
+                f'</div>'
+            )
+        elif blk["kind"] == "list":
+            rows.append(
+                f'<div class="doc-block is-list" tabindex="0" data-line="{idx}">'
+                f'<span class="line-anchor" aria-hidden="true">{idx:02d}</span>'
+                f'<p class="block-text"><span class="bullet-dot" aria-hidden="true"></span>{txt}</p>'
+                f'</div>'
+            )
+        elif blk["kind"] == "code":
+            rows.append(
+                f'<div class="doc-block is-code" tabindex="0" data-line="{idx}">'
+                f'<span class="line-anchor" aria-hidden="true">{idx:02d}</span>'
+                f'<code class="block-text">{txt}</code>'
+                f'</div>'
+            )
+        else:
+            rows.append(
+                f'<div class="doc-block" tabindex="0" data-line="{idx}">'
+                f'<span class="line-anchor" aria-hidden="true">{idx:02d}</span>'
+                f'<p class="block-text">{txt}</p>'
+                f'</div>'
+            )
+
+    if not rows:
+        rows.append(
+            '<div class="doc-block" tabindex="0" data-line="1">'
+            '<span class="line-anchor" aria-hidden="true">01</span>'
+            '<p class="block-text">当前笔记暂无正文内容，请在 Block 编辑器中输入内容后重新打开。</p>'
+            '</div>'
         )
 
-    if not rows_html:
-        rows_html.append(
-            '<article class="block-row" tabindex="0">'
-            '<div class="anchor-col"><span class="line-num">01</span><span class="anchor-dot"></span><span class="line-tag">提示</span></div>'
-            '<div class="content-col"><div class="text-line">当前笔记暂无正文内容。</div></div>'
-            '</article>'
-        )
-
-    speech_btn = (
-        '<button type="button" id="btn-speak" class="ctrl-btn">朗读当前段</button>'
-        if speech
-        else ""
-    )
-
-    themes_json = json.dumps(PALETTES, ensure_ascii=False)
+    themes_json = json.dumps(PAPER_THEMES, ensure_ascii=False)
+    contrasts_json = json.dumps(CONTRAST_LEVELS, ensure_ascii=False)
 
     return f"""<!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-editor-grid="{mode}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title_esc} · 点阵无障碍阅读</title>
+<title>{title_esc} · 画布点阵阅读</title>
 <style>
 :root {{
-  --bg: {pal['bg']};
-  --panel: {pal['panel']};
-  --box: {pal['box']};
-  --fg: {pal['fg']};
-  --sub: {pal['sub']};
-  --accent: {pal['accent']};
-  --accent-ink: {pal['accent_ink']};
-  --border: {pal['border']};
-  --focus-bg: {pal['focus_bg']};
-  --dot: {pal['dot']};
-  --grid: {grid_px}px;
-  --font-size: {font_px}px;
+  --paper-bg: {theme['bg']};
+  --paper-surface: {theme['surface']};
+  --paper-fg: {theme['fg']};
+  --paper-sub: {theme['sub']};
+  --paper-accent: {theme['accent']};
+  --paper-accent-ink: {theme['accent_ink']};
+  --paper-border: {theme['border']};
+  --paper-focus-bg: {theme['focus_bg']};
+  --editor-font-size: {base_font}px;
+  --editor-line-height: {line_h};
+  --editor-grid-size: {grid_size}px;
+  --editor-grid-line: rgba({theme['rgb']}, {contrast['line_alpha']});
+  --editor-grid-dot: rgba({theme['rgb']}, {contrast['dot_alpha']});
+  --editor-dot-r: {contrast['dot_radius']}px;
+  --editor-grid-layers: none;
+}}
+:root[data-editor-grid="grid"] {{
+  --editor-grid-layers:
+    repeating-linear-gradient(to bottom, var(--editor-grid-line) 0 1px, transparent 1px var(--editor-grid-size)),
+    repeating-linear-gradient(to right, var(--editor-grid-line) 0 1px, transparent 1px var(--editor-grid-size));
+}}
+:root[data-editor-grid="dots"] {{
+  --editor-grid-layers:
+    radial-gradient(circle at 50% 50%, var(--editor-grid-dot) var(--editor-dot-r), transparent calc(var(--editor-dot-r) + 0.55px));
 }}
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0;
   min-height: 100vh;
-  background-color: var(--bg);
-  background-image: radial-gradient(var(--dot) 1.6px, transparent 1.6px);
-  background-size: var(--grid) var(--grid);
-  color: var(--fg);
+  background: var(--paper-surface);
+  color: var(--paper-fg);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }}
-body.grid-off {{ background-image: none; }}
-.skip-link {{
-  position: absolute;
-  left: -9999px;
-  top: 8px;
-  padding: 12px 18px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
-  border-radius: 8px;
-}}
-.skip-link:focus {{ left: 16px; z-index: 100; }}
-.wrap {{
-  max-width: 1060px;
-  margin: 0 auto;
-  padding: 24px 24px 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}}
-.toolbar {{
+.topbar {{
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 18px;
-  border-radius: 12px;
-  background: var(--panel);
-  border: 2px solid var(--border);
+  padding: 12px 24px;
+  background: var(--paper-bg);
+  border-bottom: 1px solid var(--paper-border);
 }}
-.title-box {{ display: flex; flex-direction: column; gap: 4px; }}
-.title-box h1 {{ margin: 0; font-size: 20px; line-height: 1.3; }}
-.meta-line {{ font-size: 13px; color: var(--sub); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
-.controls {{ display: flex; flex-wrap: wrap; gap: 8px; }}
-.ctrl-btn {{
-  min-height: 44px;
-  padding: 0 14px;
-  border-radius: 8px;
-  border: 2px solid var(--border);
-  background: transparent;
-  color: var(--fg);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}}
-.ctrl-btn[aria-pressed="true"] {{
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}}
-.ctrl-btn:focus-visible, .block-row:focus-visible {{
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}}
-main {{ display: flex; flex-direction: column; gap: 14px; }}
-.block-row {{
+.brand {{
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 18px 20px;
-  border-radius: 12px;
-  background: var(--panel);
-  border: 2px solid var(--border);
-  cursor: pointer;
-}}
-.block-row.is-active {{
-  background: var(--focus-bg);
-  border-color: var(--accent);
-}}
-.anchor-col {{
-  width: 52px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding-top: 4px;
-}}
-.line-num {{
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--accent);
-}}
-.anchor-dot {{
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--accent);
-}}
-.line-tag {{ font-size: 12px; color: var(--sub); }}
-.content-col {{
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+  align-items: baseline;
   gap: 10px;
 }}
-.text-line {{
-  font-size: var(--font-size);
-  line-height: 1.7;
+.brand strong {{ font-size: 15px; }}
+.brand span {{
+  font-size: 12px;
+  color: var(--paper-sub);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}}
+.toolbar-group {{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}}
+.seg {{
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--paper-surface);
+  border: 1px solid var(--paper-border);
+  gap: 2px;
+}}
+.seg button, .tool-btn {{
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--paper-fg);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  cursor: pointer;
+}}
+.seg button[aria-pressed="true"] {{
+  background: var(--paper-accent);
+  color: var(--paper-accent-ink);
+}}
+.tool-btn {{
+  border-color: var(--paper-border);
+  background: var(--paper-bg);
+}}
+.tool-btn[aria-pressed="true"] {{
+  border-color: var(--paper-accent);
+  background: var(--paper-focus-bg);
+  color: var(--paper-accent);
+}}
+.canvas-scroll {{
+  min-height: calc(100vh - 64px);
+  padding: 40px 24px 96px;
+  background-color: var(--paper-bg);
+  background-image: var(--editor-grid-layers);
+  background-size: var(--editor-grid-size) var(--editor-grid-size);
+  background-attachment: local;
+}}
+.editor-column {{
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}}
+.doc-block {{
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}}
+body.focus-guide .doc-block:hover,
+body.focus-guide .doc-block.is-focused,
+body.focus-guide .doc-block:focus-visible {{
+  background: var(--paper-focus-bg);
+  border-left-color: var(--paper-accent);
+  outline: none;
+}}
+.line-anchor {{
+  width: 26px;
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--paper-sub);
+  opacity: 0.72;
+  user-select: none;
+}}
+.block-text {{
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+  letter-spacing: 0.02em;
   word-break: break-word;
 }}
-.block-row.is-heading .text-line {{
-  font-size: calc(var(--font-size) * 1.28);
-  font-weight: 800;
+.is-h1 .block-text {{ font-size: calc(var(--editor-font-size) * 1.55); font-weight: 700; line-height: 1.4; }}
+.is-h2 .block-text {{ font-size: calc(var(--editor-font-size) * 1.28); font-weight: 700; line-height: 1.45; }}
+.is-h3 .block-text {{ font-size: calc(var(--editor-font-size) * 1.12); font-weight: 650; }}
+.is-quote .block-text {{
+  padding-left: 14px;
+  border-left: 3px solid var(--paper-accent);
+  color: var(--paper-sub);
 }}
-.braille-line {{
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: var(--box);
-  border: 1px dashed var(--border);
+.is-code .block-text {{
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: calc(var(--font-size) * 0.85);
-  letter-spacing: 0.16em;
-  line-height: 1.55;
-  color: var(--accent);
-  word-break: break-all;
+  font-size: calc(var(--editor-font-size) * 0.9);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--paper-surface);
+  border: 1px solid var(--paper-border);
+}}
+.bullet-dot {{
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--paper-accent);
+  margin-right: 10px;
+  vertical-align: middle;
+}}
+.doc-hr {{
+  border: none;
+  border-top: 1px dashed var(--paper-border);
+  margin: 14px 0 14px 42px;
 }}
 @media print {{
-  .toolbar {{ display: none; }}
-  body {{ background: #ffffff !important; color: #000000 !important; }}
-  .block-row {{ border: 1px solid #111111; background: #ffffff; break-inside: avoid; }}
-  .braille-line {{ background: #f5f5f5; color: #000000; border-color: #333333; }}
+  .topbar {{ display: none; }}
+  .canvas-scroll {{ padding: 12mm; }}
 }}
 </style>
 </head>
-<body>
-<a class="skip-link" href="#reader-main">跳到正文点阵内容</a>
-<div class="wrap">
-  <header class="toolbar" role="banner">
-    <div class="title-box">
-      <h1>{title_esc}</h1>
-      <div class="meta-line" id="status-line">对比度 {pal['contrast']} · 步距 {grid_px}px · 字号 {font_px}px</div>
+<body class="{'focus-guide' if focus_guide else ''}">
+<header class="topbar" role="banner">
+  <div class="brand">
+    <strong>{title_esc}</strong>
+    <span id="meta-info">画布 {GRID_MODES[mode]['label']} · {contrast['label']} · 步距 {grid_size}px</span>
+  </div>
+  <div class="toolbar-group" role="toolbar" aria-label="画布网格与可读性控制">
+    <div class="seg" role="group" aria-label="编辑器网格">
+      <button type="button" data-grid="off" aria-pressed="{str(mode == 'off').lower()}">无</button>
+      <button type="button" data-grid="grid" aria-pressed="{str(mode == 'grid').lower()}">方格</button>
+      <button type="button" data-grid="dots" aria-pressed="{str(mode == 'dots').lower()}">点阵</button>
     </div>
-    <div class="controls" role="toolbar" aria-label="阅读显示控制">
-      <button type="button" class="ctrl-btn" data-theme="amber_dark" aria-pressed="{str(pal_key == 'amber_dark').lower()}">暗夜金黄</button>
-      <button type="button" class="ctrl-btn" data-theme="mono_dark" aria-pressed="{str(pal_key == 'mono_dark').lower()}">纯黑亮白</button>
-      <button type="button" class="ctrl-btn" data-theme="navy_light" aria-pressed="{str(pal_key == 'navy_light').lower()}">深海暖白</button>
-      <button type="button" id="btn-dec" class="ctrl-btn" aria-label="缩小字号">A-</button>
-      <button type="button" id="btn-inc" class="ctrl-btn" aria-label="放大字号">A+</button>
-      <button type="button" id="btn-grid" class="ctrl-btn" aria-pressed="true">点阵网格</button>
-      {speech_btn}
+    <div class="seg" role="group" aria-label="对比度强度">
+      <button type="button" data-contrast="subtle" aria-pressed="{str(contrast_key == 'subtle').lower()}">柔和</button>
+      <button type="button" data-contrast="clear" aria-pressed="{str(contrast_key == 'clear').lower()}">清晰</button>
+      <button type="button" data-contrast="high" aria-pressed="{str(contrast_key == 'high').lower()}">高对比</button>
     </div>
-  </header>
-  <main id="reader-main" role="main">
-    {''.join(rows_html)}
-  </main>
-</div>
+    <div class="seg" role="group" aria-label="纸面主题">
+      <button type="button" data-theme="paper" aria-pressed="{str(theme_key == 'paper').lower()}">浅色</button>
+      <button type="button" data-theme="warm" aria-pressed="{str(theme_key == 'warm').lower()}">暖纸</button>
+      <button type="button" data-theme="dark_hc" aria-pressed="{str(theme_key == 'dark_hc').lower()}">暗夜</button>
+    </div>
+    <button type="button" id="btn-dec" class="tool-btn" aria-label="缩小字号">A-</button>
+    <button type="button" id="btn-inc" class="tool-btn" aria-label="放大字号">A+</button>
+    <button type="button" id="btn-focus" class="tool-btn" aria-pressed="{str(focus_guide).lower()}">行焦点</button>
+  </div>
+</header>
+<main class="canvas-scroll" role="main">
+  <div class="editor-column">
+    {''.join(rows)}
+  </div>
+</main>
 <script>
 const THEMES = {themes_json};
-let currentTheme = {json.dumps(pal_key)};
-let currentFont = {font_px};
-let activeRow = document.querySelector('.block-row');
-if (activeRow) activeRow.classList.add('is-active');
+const CONTRASTS = {contrasts_json};
+const MODE_LABELS = {{ off: '无', grid: '方格', dots: '点阵' }};
+let curGrid = {json.dumps(mode)};
+let curContrast = {json.dumps(contrast_key)};
+let curTheme = {json.dumps(theme_key)};
+let curFont = {base_font};
+const lineHeight = {line_h};
 
-function updateMeta() {{
-  const t = THEMES[currentTheme] || THEMES.amber_dark;
-  const gridOn = !document.body.classList.contains('grid-off');
-  document.getElementById('status-line').textContent =
-    '对比度 ' + t.contrast + ' · 字号 ' + currentFont + 'px · 防串行点阵 ' + (gridOn ? '开启' : '关闭');
-}}
-
-function applyTheme(key) {{
-  const t = THEMES[key];
-  if (!t) return;
-  currentTheme = key;
+function syncVars() {{
+  const t = THEMES[curTheme] || THEMES.paper;
+  const c = CONTRASTS[curContrast] || CONTRASTS.clear;
+  const gridPx = Math.round(curFont * lineHeight * 100) / 100;
   const r = document.documentElement.style;
-  r.setProperty('--bg', t.bg);
-  r.setProperty('--panel', t.panel);
-  r.setProperty('--box', t.box);
-  r.setProperty('--fg', t.fg);
-  r.setProperty('--sub', t.sub);
-  r.setProperty('--accent', t.accent);
-  r.setProperty('--accent-ink', t.accent_ink);
-  r.setProperty('--border', t.border);
-  r.setProperty('--focus-bg', t.focus_bg);
-  r.setProperty('--dot', t.dot);
-  document.querySelectorAll('[data-theme]').forEach(btn => {{
-    btn.setAttribute('aria-pressed', btn.getAttribute('data-theme') === key ? 'true' : 'false');
-  }});
-  updateMeta();
+  document.documentElement.setAttribute('data-editor-grid', curGrid);
+  r.setProperty('--paper-bg', t.bg);
+  r.setProperty('--paper-surface', t.surface);
+  r.setProperty('--paper-fg', t.fg);
+  r.setProperty('--paper-sub', t.sub);
+  r.setProperty('--paper-accent', t.accent);
+  r.setProperty('--paper-accent-ink', t.accent_ink);
+  r.setProperty('--paper-border', t.border);
+  r.setProperty('--paper-focus-bg', t.focus_bg);
+  r.setProperty('--editor-font-size', curFont + 'px');
+  r.setProperty('--editor-grid-size', gridPx + 'px');
+  r.setProperty('--editor-grid-line', 'rgba(' + t.rgb + ', ' + c.line_alpha + ')');
+  r.setProperty('--editor-grid-dot', 'rgba(' + t.rgb + ', ' + c.dot_alpha + ')');
+  r.setProperty('--editor-dot-r', c.dot_radius + 'px');
+  document.getElementById('meta-info').textContent =
+    '画布 ' + MODE_LABELS[curGrid] + ' · ' + c.label + ' · 步距 ' + gridPx + 'px · 字号 ' + curFont + 'px';
 }}
 
+document.querySelectorAll('[data-grid]').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    curGrid = btn.getAttribute('data-grid');
+    document.querySelectorAll('[data-grid]').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+    syncVars();
+  }});
+}});
+document.querySelectorAll('[data-contrast]').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    curContrast = btn.getAttribute('data-contrast');
+    document.querySelectorAll('[data-contrast]').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+    syncVars();
+  }});
+}});
 document.querySelectorAll('[data-theme]').forEach(btn => {{
-  btn.addEventListener('click', () => applyTheme(btn.getAttribute('data-theme')));
+  btn.addEventListener('click', () => {{
+    curTheme = btn.getAttribute('data-theme');
+    document.querySelectorAll('[data-theme]').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+    syncVars();
+  }});
 }});
 document.getElementById('btn-dec').addEventListener('click', () => {{
-  currentFont = Math.max(16, currentFont - 2);
-  document.documentElement.style.setProperty('--font-size', currentFont + 'px');
-  updateMeta();
+  curFont = Math.max(14, curFont - 2);
+  syncVars();
 }});
 document.getElementById('btn-inc').addEventListener('click', () => {{
-  currentFont = Math.min(44, currentFont + 2);
-  document.documentElement.style.setProperty('--font-size', currentFont + 'px');
-  updateMeta();
+  curFont = Math.min(34, curFont + 2);
+  syncVars();
 }});
-document.getElementById('btn-grid').addEventListener('click', (e) => {{
-  document.body.classList.toggle('grid-off');
-  e.currentTarget.setAttribute('aria-pressed', document.body.classList.contains('grid-off') ? 'false' : 'true');
-  updateMeta();
+document.getElementById('btn-focus').addEventListener('click', (e) => {{
+  const on = document.body.classList.toggle('focus-guide');
+  e.currentTarget.setAttribute('aria-pressed', on ? 'true' : 'false');
 }});
-document.querySelectorAll('.block-row').forEach(row => {{
-  const activate = () => {{
-    document.querySelectorAll('.block-row.is-active').forEach(el => el.classList.remove('is-active'));
-    row.classList.add('is-active');
-    activeRow = row;
-  }};
-  row.addEventListener('click', activate);
-  row.addEventListener('focus', activate);
-}});
-const speakBtn = document.getElementById('btn-speak');
-if (speakBtn) {{
-  speakBtn.addEventListener('click', () => {{
-    if (!('speechSynthesis' in window) || !activeRow) return;
-    window.speechSynthesis.cancel();
-    const txt = activeRow.querySelector('.text-line')?.textContent || '';
-    const u = new SpeechSynthesisUtterance(txt);
-    u.lang = 'zh-CN';
-    window.speechSynthesis.speak(u);
+document.querySelectorAll('.doc-block').forEach(el => {{
+  el.addEventListener('click', () => {{
+    document.querySelectorAll('.doc-block.is-focused').forEach(x => x.classList.remove('is-focused'));
+    el.classList.add('is-focused');
   }});
-}}
+}});
 </script>
 </body>
 </html>
 """
 
 
-def build_tactile_svg(note_path, blocks):
-    """Build a crisp A4-proportioned tactile Braille dot-matrix SVG with raised solid dots."""
-    width = 794
-    margin_x = 46
-    cells_per_row = 22
-    cell_w = 31
-    row_h = 84
-    header_h = 104
+def build_grid_paper_svg(note_path, blocks, cfg):
+    """Export an A4 vector dot-grid / square-grid sheet (Thinkly canvas style, no Braille)."""
+    mode = cfg.get("grid_mode", "dots")
+    if mode not in GRID_MODES:
+        mode = "dots"
+    contrast = CONTRAST_LEVELS.get(cfg.get("contrast_level", "clear"), CONTRAST_LEVELS["clear"])
+    theme = PAPER_THEMES.get(cfg.get("paper_theme", "paper"), PAPER_THEMES["paper"])
+    dens = DENSITY_CONFIG.get(cfg.get("grid_density", "standard"), DENSITY_CONFIG["standard"])
 
-    selected_blocks = blocks[:10] if blocks else [
-        {"tag": "提示", "text": "当前笔记暂无正文", "braille": text_to_braille("empty")}
-    ]
-    total_h = max(1123, header_h + len(selected_blocks) * row_h + 72)
+    w, h = 794, 1123
+    step = dens["grid_px"]
+    dot_r = contrast["dot_radius"]
+    dot_fill = f"rgba({theme['rgb']}, {contrast['dot_alpha']})"
+    line_stroke = f"rgba({theme['rgb']}, {contrast['line_alpha']})"
 
-    parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{total_h}" viewBox="0 0 {width} {total_h}">',
-        '<rect x="0" y="0" width="100%" height="100%" fill="#ffffff"/>',
-        f'<text x="{margin_x}" y="44" font-family="sans-serif" font-size="13" font-weight="700" fill="#374151">BLOCK DOT MATRIX · A4 触觉盲文点阵图</text>',
-        f'<text x="{margin_x}" y="74" font-family="sans-serif" font-size="22" font-weight="700" fill="#111827">{html.escape(note_path or "note.md")}</text>',
-        f'<line x1="{margin_x}" y1="90" x2="{width - margin_x}" y2="90" stroke="#111827" stroke-width="2"/>',
-    ]
-
-    dot_offsets = [
-        (0, 0),   # dot 1
-        (0, 9),   # dot 2
-        (0, 18),  # dot 3
-        (9, 0),   # dot 4
-        (9, 9),   # dot 5
-        (9, 18),  # dot 6
-    ]
-
-    for row_idx, blk in enumerate(selected_blocks):
-        top_y = header_h + row_idx * row_h
-        caption = f"{row_idx + 1:02d} [{blk['tag']}] {blk['text'][:38]}"
-        parts.append(
-            f'<rect x="{margin_x}" y="{top_y}" width="{width - margin_x * 2}" height="{row_h - 12}" rx="8" fill="#fcfcfd" stroke="#cbd5e1" stroke-width="1.2"/>'
+    defs = []
+    bg_fill = theme["bg"]
+    pattern_rect = ""
+    if mode == "dots":
+        defs.append(
+            f'<pattern id="dot-pattern" width="{step}" height="{step}" patternUnits="userSpaceOnUse">'
+            f'<circle cx="{step / 2:.1f}" cy="{step / 2:.1f}" r="{dot_r}" fill="{dot_fill}"/>'
+            f'</pattern>'
         )
-        parts.append(
-            f'<text x="{margin_x + 14}" y="{top_y + 22}" font-family="sans-serif" font-size="13" font-weight="700" fill="#111827">{html.escape(caption)}</text>'
+        pattern_rect = f'<rect x="36" y="36" width="{w - 72}" height="{h - 72}" fill="url(#dot-pattern)"/>'
+    elif mode == "grid":
+        defs.append(
+            f'<pattern id="grid-pattern" width="{step}" height="{step}" patternUnits="userSpaceOnUse">'
+            f'<path d="M {step} 0 L 0 0 0 {step}" fill="none" stroke="{line_stroke}" stroke-width="1"/>'
+            f'</pattern>'
         )
-        braille_chars = [ch for ch in blk["braille"] if 0x2800 <= ord(ch) <= 0x28FF][:cells_per_row]
-        for ci, ch in enumerate(braille_chars):
-            bits = ord(ch) - 0x2800
-            cx0 = margin_x + 18 + ci * cell_w
-            cy0 = top_y + 38
-            for bit_i, (dx, dy) in enumerate(dot_offsets):
-                is_raised = bool(bits & (1 << bit_i))
-                if is_raised:
-                    parts.append(f'<circle cx="{cx0 + dx}" cy="{cy0 + dy}" r="3.1" fill="#111827"/>')
-                else:
-                    parts.append(f'<circle cx="{cx0 + dx}" cy="{cy0 + dy}" r="2.5" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>')
+        pattern_rect = f'<rect x="36" y="36" width="{w - 72}" height="{h - 72}" fill="url(#grid-pattern)"/>'
 
-    parts.append(
-        f'<text x="{margin_x}" y="{total_h - 24}" font-family="monospace" font-size="12" fill="#475569">实心黑点 = 凸起盲文点位（1-6点） · 矢量可打印触觉稿</text>'
-    )
-    parts.append("</svg>")
-    return "\n".join(parts)
+    lines_svg = []
+    y = 128
+    for idx, blk in enumerate(blocks[:22], start=1):
+        if blk["kind"] == "hr":
+            lines_svg.append(f'<line x1="64" y1="{y}" x2="{w - 64}" y2="{y}" stroke="{theme["border"]}" stroke-dasharray="4 4"/>')
+            y += step
+            continue
+        text = blk["text"][:46]
+        size = 24 if blk["kind"] == "heading" and blk["level"] == 1 else 19 if blk["kind"] == "heading" else 16
+        weight = "700" if blk["kind"] == "heading" else "500"
+        lines_svg.append(
+            f'<text x="64" y="{y}" font-family="monospace" font-size="11" fill="{theme["sub"]}">{idx:02d}</text>'
+            f'<text x="96" y="{y}" font-family="sans-serif" font-size="{size}" font-weight="{weight}" fill="{theme["fg"]}">{html.escape(text)}</text>'
+        )
+        y += max(step, int(size * 1.85))
+        if y > h - 72:
+            break
+
+    return "\n".join([
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+        f'<defs>{"".join(defs)}</defs>',
+        f'<rect x="0" y="0" width="{w}" height="{h}" fill="{bg_fill}"/>',
+        pattern_rect,
+        f'<text x="64" y="68" font-family="sans-serif" font-size="12" font-weight="700" fill="{theme["accent"]}">BLOCK CANVAS DOTS · {GRID_MODES[mode]["label"]}画布（{contrast["label"]} · {step}px）</text>',
+        f'<text x="64" y="92" font-family="sans-serif" font-size="18" font-weight="700" fill="{theme["fg"]}">{html.escape(note_path or "note.md")}</text>',
+        f'<line x1="64" y1="104" x2="{w - 64}" y2="104" stroke="{theme["border"]}" stroke-width="1.2"/>',
+        *lines_svg,
+        "</svg>",
+    ])
+
+
+def build_canvas_css(cfg):
+    mode = cfg.get("grid_mode", "dots")
+    contrast = CONTRAST_LEVELS.get(cfg.get("contrast_level", "clear"), CONTRAST_LEVELS["clear"])
+    theme = PAPER_THEMES.get(cfg.get("paper_theme", "paper"), PAPER_THEMES["paper"])
+    dens = DENSITY_CONFIG.get(cfg.get("grid_density", "standard"), DENSITY_CONFIG["standard"])
+    return f"""/* Thinkly-style Editor Canvas Grid & Dots (exported by block-dot-matrix) */
+:root[data-block-editor-grid] {{
+  --editor-font-size: {dens['font_px']}px;
+  --editor-line-height: {dens['line_height']};
+  --block-editor-grid-size: calc(var(--editor-font-size) * var(--editor-line-height));
+  --block-editor-grid-line: rgba({theme['rgb']}, {contrast['line_alpha']});
+  --block-editor-grid-dot: rgba({theme['rgb']}, {contrast['dot_alpha']});
+  --block-editor-grid-layers:
+    repeating-linear-gradient(to bottom, var(--block-editor-grid-line) 0 1px, transparent 1px var(--block-editor-grid-size)),
+    repeating-linear-gradient(to right, var(--block-editor-grid-line) 0 1px, transparent 1px var(--block-editor-grid-size));
+}}
+
+:root[data-block-editor-grid="dots"] {{
+  --block-editor-grid-layers:
+    radial-gradient(circle at 50% 50%, var(--block-editor-grid-dot) {contrast['dot_radius']}px, transparent {contrast['dot_radius'] + 0.5:.2f}px) 0 0 / var(--block-editor-grid-size) var(--block-editor-grid-size) round local;
+}}
+
+/* Active preset: data-block-editor-grid="{mode}" ({GRID_MODES[mode]['label']} · {contrast['label']}) */
+"""
 
 
 class HostBridge:
@@ -666,7 +650,7 @@ class HostBridge:
                 self.send({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32000, "message": str(exc)}})
 
 
-class DotMatrixPlugin:
+class CanvasDotsPlugin:
     def __init__(self):
         self.downloads_dir = os.path.expanduser("~/Downloads")
         self.notebook_root = ""
@@ -695,7 +679,7 @@ class DotMatrixPlugin:
         try:
             res = bridge.call_host("host.storage.get", {"key": "logs"})
             if res.get("found") and isinstance(res.get("value"), list):
-                return res["value"][:12]
+                return res["value"][:10]
         except Exception:
             pass
         return []
@@ -704,7 +688,7 @@ class DotMatrixPlugin:
         logs = self.load_logs(bridge)
         logs.insert(0, {"title": title, "time": now_hms(), "status": status})
         try:
-            bridge.call_host("host.storage.set", {"key": "logs", "value": logs[:12]})
+            bridge.call_host("host.storage.set", {"key": "logs", "value": logs[:10]})
         except Exception:
             pass
 
@@ -712,27 +696,26 @@ class DotMatrixPlugin:
         if not isinstance(values, dict):
             return cfg
         updated = dict(cfg)
-        for key in ("target_note", "mode", "palette", "dot_density", "font_scale"):
+        for key in ("target_note", "grid_mode", "contrast_level", "paper_theme", "grid_density"):
             if key in values and isinstance(values[key], str):
                 updated[key] = values[key]
-        for key in ("auto_sync_note", "speech_assist"):
+        for key in ("line_focus_guide", "large_text_boost"):
             if key in values and isinstance(values[key], bool):
                 updated[key] = values[key]
         return updated
 
     def fetch_notes(self, bridge):
-        notes = []
-        active = ""
+        notes, active = [], ""
         try:
             res = bridge.call_host("host.notes.list", {})
             notes = [n.get("path", "") for n in res.get("notes", []) if n.get("path")]
         except Exception:
-            notes = []
+            pass
         try:
             res = bridge.call_host("host.notes.active", {})
             active = (res.get("path") or "").strip()
         except Exception:
-            active = ""
+            pass
         return notes, active
 
     def resolve_target_note(self, cfg, notes, active):
@@ -766,152 +749,131 @@ class DotMatrixPlugin:
         if selected_note_val not in valid_note_vals:
             selected_note_val = "__active__"
 
+        mode = cfg.get("grid_mode", "dots")
+        if mode not in GRID_MODES:
+            mode = "dots"
+        contrast_key = cfg.get("contrast_level", "clear")
+        if contrast_key not in CONTRAST_LEVELS:
+            contrast_key = "clear"
+        theme_key = cfg.get("paper_theme", "paper")
+        if theme_key not in PAPER_THEMES:
+            theme_key = "paper"
+        dens_key = cfg.get("grid_density", "standard")
+        if dens_key not in DENSITY_CONFIG:
+            dens_key = "standard"
+
+        contrast = CONTRAST_LEVELS[contrast_key]
+        theme = PAPER_THEMES[theme_key]
+        dens = DENSITY_CONFIG[dens_key]
         target_path = self.resolve_target_note(cfg, notes, active)
-        content = self.read_note(bridge, target_path)
-        blocks = parse_markdown_blocks(content)
-        braille_count = count_braille_cells(blocks)
+        blocks = parse_markdown_blocks(self.read_note(bridge, target_path))
 
-        pal_key = cfg.get("palette", "amber_dark")
-        if pal_key not in PALETTES:
-            pal_key = "amber_dark"
-        pal = PALETTES[pal_key]
+        preview_lines = []
+        for idx, blk in enumerate(blocks[:5], start=1):
+            if blk["kind"] == "heading" and blk["level"] == 1:
+                preview_lines.append(f"# {blk['text']}")
+            elif blk["kind"] == "heading":
+                preview_lines.append(f"## {blk['text']}")
+            elif blk["kind"] == "quote":
+                preview_lines.append(f"> {blk['text']}")
+            elif blk["kind"] != "hr":
+                preview_lines.append(f"[{idx}] {blk['text']}")
 
-        mode = cfg.get("mode", "hybrid")
-        if mode not in ("hybrid", "braille", "low_vision"):
-            mode = "hybrid"
-
-        density = cfg.get("dot_density", "medium")
-        if density not in DENSITY_PX:
-            density = "medium"
-        grid_px = DENSITY_PX[density]
-
-        font_scale = cfg.get("font_scale", "large")
-        if font_scale not in FONT_SCALE_PX:
-            font_scale = "large"
-
-        sample_blocks = blocks[:5]
-        if sample_blocks:
-            before_text = "\n".join(f"{i:02d} [{b['tag']}] {b['text']}" for i, b in enumerate(sample_blocks, 1))
-            after_text = "\n".join(f"{i:02d} {b['braille']}" for i, b in enumerate(sample_blocks, 1))
-            article_body = "\n".join(
-                (f"# {b['text']}" if b["level"] == 1 else f"## {b['text']}" if b["level"] >= 2 else f"> {i:02d} · {b['text']}")
-                for i, b in enumerate(sample_blocks, 1)
-            )
-        else:
-            before_text = "01 [提示] 打开包含 Markdown 笔记的笔记本后将自动展示点阵转换对照。"
-            after_text = "01 " + text_to_braille("Block Dot Matrix")
-            article_body = "# 点阵大字阅读预览\n> 打开任意笔记后即可生成防串行点阵与盲文对照视图。"
-
-        if mode == "low_vision":
-            preview_obj = {
-                "variant": "article",
-                "palette": pal["preview_palette"],
-                "title": f"防串行点阵预览 · {target_path or '示例笔记'}",
-                "badge": f"{pal['name']} · {pal['contrast']}",
-                "subtitle": f"点阵步距 {grid_px}px · 字号 {FONT_SCALE_PX[font_scale]}px",
-                "body": article_body,
-            }
-        else:
-            preview_obj = {
-                "variant": "diff",
-                "palette": pal["preview_palette"],
-                "title": f"盲文点阵对照预览 · {target_path or '示例笔记'}",
-                "badge": f"{braille_count} 格盲文 · {pal['contrast']}",
-                "subtitle": f"{sanitize_filename(target_path)}-点阵阅读.html",
-                "before": before_text,
-                "after": after_text,
-            }
+        if not preview_lines:
+            preview_lines = [
+                "# 画布点阵阅读预览",
+                "## Thinkly 同款编辑器网格（无 / 方格 / 点阵）",
+                "> 点阵步距随正文字号与行高自动对齐，帮助弱视用户稳定追踪每一行。",
+            ]
 
         dl_name = os.path.basename(self.downloads_dir.rstrip(os.sep)) or "Downloads"
         dl_row = {"label": "导出目录", "value": dl_name}
         if "kv_tooltip" in self.ui_capabilities:
             dl_row["tooltip"] = self.downloads_dir
 
-        note_row = {"label": "当前目标笔记", "value": target_path or "未打开笔记本"}
+        note_row = {"label": "目标笔记", "value": target_path or "未打开笔记本"}
         if "kv_tooltip" in self.ui_capabilities and self.notebook_root and target_path:
             note_row["tooltip"] = os.path.join(self.notebook_root, target_path)
 
-        logs = self.load_logs(bridge)
-
         return {
-            "title": "点阵阅读",
+            "title": "画布点阵",
             "status": self.last_status,
             "header_actions": [
-                {"id": "open_reader", "label": "打开点阵阅读页", "variant": "primary"},
-                {"id": "export_tactile_svg", "label": "导出触觉 SVG", "variant": "secondary"},
+                {"id": "open_reader", "label": "打开点阵画布页", "variant": "primary"},
+                {"id": "export_grid_svg", "label": "导出 A4 点阵纸", "variant": "secondary"},
             ],
             "cards": [
                 {
-                    "id": "config-card",
-                    "title": "点阵与无障碍设置",
+                    "id": "canvas-card",
+                    "title": "画布（Thinkly 编辑器网格）",
                     "items": [
+                        {
+                            "kind": "segmented",
+                            "id": "grid_mode",
+                            "label": "编辑器网格",
+                            "value": mode,
+                            "options": [
+                                {"value": "off", "label": "无"},
+                                {"value": "grid", "label": "方格"},
+                                {"value": "dots", "label": "点阵"},
+                            ],
+                        },
+                        {
+                            "kind": "segmented",
+                            "id": "contrast_level",
+                            "label": "点阵对比度",
+                            "value": contrast_key,
+                            "options": [
+                                {"value": "subtle", "label": "柔和"},
+                                {"value": "clear", "label": "清晰增强"},
+                                {"value": "high", "label": "视障高对比"},
+                            ],
+                        },
+                        {
+                            "kind": "segmented",
+                            "id": "grid_density",
+                            "label": "行高步距",
+                            "value": dens_key,
+                            "options": [
+                                {"value": "compact", "label": "紧凑 24px"},
+                                {"value": "standard", "label": "标准 30px"},
+                                {"value": "relaxed", "label": "宽松 38px"},
+                            ],
+                        },
+                        {
+                            "kind": "segmented",
+                            "id": "paper_theme",
+                            "label": "纸面主题",
+                            "value": theme_key,
+                            "options": [
+                                {"value": "paper", "label": "浅色纸面"},
+                                {"value": "warm", "label": "暖色护眼"},
+                                {"value": "dark_hc", "label": "暗夜高对比"},
+                            ],
+                        },
+                        {
+                            "kind": "switch",
+                            "id": "line_focus_guide",
+                            "label": "开启行焦点防串行引导",
+                            "value": bool(cfg.get("line_focus_guide", True)),
+                        },
+                        {
+                            "kind": "switch",
+                            "id": "large_text_boost",
+                            "label": "弱视大字增强（字号 +4px）",
+                            "value": bool(cfg.get("large_text_boost", False)),
+                        },
                         {
                             "kind": "select",
                             "id": "target_note",
-                            "label": "目标笔记",
+                            "label": "预览笔记",
                             "value": selected_note_val,
                             "options": note_options,
                         },
                         {
-                            "kind": "segmented",
-                            "id": "mode",
-                            "label": "输出模式",
-                            "value": mode,
-                            "options": [
-                                {"value": "hybrid", "label": "综合点阵"},
-                                {"value": "braille", "label": "纯盲文"},
-                                {"value": "low_vision", "label": "防串行大字"},
-                            ],
-                        },
-                        {
-                            "kind": "segmented",
-                            "id": "palette",
-                            "label": "高对比度配色",
-                            "value": pal_key,
-                            "options": [
-                                {"value": "amber_dark", "label": "暗夜金黄"},
-                                {"value": "mono_dark", "label": "纯黑亮白"},
-                                {"value": "navy_light", "label": "深海暖白"},
-                            ],
-                        },
-                        {
-                            "kind": "segmented",
-                            "id": "dot_density",
-                            "label": "防串行点阵步距",
-                            "value": density,
-                            "options": [
-                                {"value": "loose", "label": "疏 24px"},
-                                {"value": "medium", "label": "中 18px"},
-                                {"value": "dense", "label": "密 14px"},
-                            ],
-                        },
-                        {
-                            "kind": "segmented",
-                            "id": "font_scale",
-                            "label": "阅读页字号",
-                            "value": font_scale,
-                            "options": [
-                                {"value": "normal", "label": "22px"},
-                                {"value": "large", "label": "26px"},
-                                {"value": "xlarge", "label": "32px"},
-                            ],
-                        },
-                        {
-                            "kind": "switch",
-                            "id": "auto_sync_note",
-                            "label": "保存笔记后自动同步盲文块",
-                            "value": bool(cfg.get("auto_sync_note", False)),
-                        },
-                        {
-                            "kind": "switch",
-                            "id": "speech_assist",
-                            "label": "阅读页启用语音朗读按钮",
-                            "value": bool(cfg.get("speech_assist", True)),
-                        },
-                        {
                             "kind": "actions",
                             "buttons": [
-                                {"id": "write_braille_block", "label": "写入笔记盲文块", "variant": "secondary"},
+                                {"id": "export_css", "label": "导出网格 CSS", "variant": "secondary"},
                                 {"id": "reveal_downloads", "label": "定位导出目录", "variant": "secondary"},
                             ],
                         },
@@ -919,26 +881,33 @@ class DotMatrixPlugin:
                 },
                 {
                     "id": "preview-card",
-                    "title": "可读性指标与实时预览",
+                    "title": "画布参数与实时预览",
                     "items": [
                         {
                             "kind": "metrics",
                             "metrics": [
-                                {"label": "段落数", "value": str(len(blocks))},
-                                {"label": "盲文格数", "value": str(braille_count)},
-                                {"label": "对比度", "value": pal["contrast"]},
-                                {"label": "点阵步距", "value": f"{grid_px} px"},
+                                {"label": "网格样式", "value": GRID_MODES[mode]["label"]},
+                                {"label": "网格步距", "value": f"{dens['grid_px']} px"},
+                                {"label": "点径 / 透明", "value": f"{contrast['dot_radius']}px / {int(contrast['dot_alpha'] * 100)}%"},
+                                {"label": "可读性等级", "value": contrast["rating"]},
                             ],
                         },
                         {
                             "kind": "preview",
-                            "preview": preview_obj,
+                            "preview": {
+                                "variant": "article",
+                                "palette": theme["preview_palette"],
+                                "title": f"{GRID_MODES[mode]['label']}画布 · {target_path or '示例笔记'}",
+                                "badge": f"{theme['label']} · {contrast['label']}",
+                                "subtitle": f"{sanitize_filename(target_path)}-点阵画布.html",
+                                "body": "\n".join(preview_lines),
+                            },
                         },
                     ],
                 },
                 {
                     "id": "logs-card",
-                    "title": "输出目录与运行记录",
+                    "title": "输出目录与最近记录",
                     "items": [
                         {
                             "kind": "kv",
@@ -946,24 +915,13 @@ class DotMatrixPlugin:
                         },
                         {
                             "kind": "log_list",
-                            "empty_text": "暂无点阵导出或盲文写入记录",
-                            "entries": logs,
+                            "empty_text": "暂无画布导出记录",
+                            "entries": self.load_logs(bridge),
                         },
                     ],
                 },
             ],
         }
-
-    def sync_note_braille(self, bridge, note_path, cfg):
-        content = self.read_note(bridge, note_path)
-        blocks = parse_markdown_blocks(content)
-        base = strip_embedded_block(content)
-        section = build_embedded_braille_section(blocks, cfg.get("mode", "hybrid"))
-        new_content = (base + "\n\n" + section + "\n") if base else (section + "\n")
-        if new_content.strip() == (content or "").strip():
-            return False, len(blocks)
-        bridge.call_host("host.notes.write", {"path": note_path, "content": new_content})
-        return True, len(blocks)
 
     def handle(self, bridge, method, params):
         if method == "plugin.initialize":
@@ -991,19 +949,16 @@ class DotMatrixPlugin:
 
             notes, active = self.fetch_notes(bridge)
             target_path = self.resolve_target_note(cfg, notes, active)
-            content = self.read_note(bridge, target_path)
-            blocks = parse_markdown_blocks(content)
-
+            blocks = parse_markdown_blocks(self.read_note(bridge, target_path))
             os.makedirs(self.downloads_dir, exist_ok=True)
             stem = sanitize_filename(target_path or "block-note")
 
             if action_id == "open_reader":
-                out_path = os.path.join(self.downloads_dir, f"{stem}-点阵阅读.html")
-                html_doc = build_reader_html(target_path or "示例笔记", blocks, cfg)
+                out_path = os.path.join(self.downloads_dir, f"{stem}-点阵画布.html")
                 with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(html_doc)
-                self.last_status = f"已生成点阵阅读页（{now_hms()}）"
-                self.append_log(bridge, os.path.basename(out_path), "已打开阅读页")
+                    f.write(build_canvas_html(target_path or "示例笔记", blocks, cfg))
+                self.last_status = f"已打开点阵画布页（{now_hms()}）"
+                self.append_log(bridge, os.path.basename(out_path), f"{GRID_MODES[cfg['grid_mode']]['label']}画布")
                 return {
                     "values": cfg,
                     "page": self.build_page(bridge, cfg),
@@ -1011,13 +966,12 @@ class DotMatrixPlugin:
                     "open_path": out_path,
                 }
 
-            if action_id == "export_tactile_svg":
-                out_path = os.path.join(self.downloads_dir, f"{stem}-触觉点阵.svg")
-                svg_doc = build_tactile_svg(target_path or "示例笔记", blocks)
+            if action_id == "export_grid_svg":
+                out_path = os.path.join(self.downloads_dir, f"{stem}-点阵纸.svg")
                 with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(svg_doc)
-                self.last_status = f"已导出触觉点阵 SVG（{now_hms()}）"
-                self.append_log(bridge, os.path.basename(out_path), "已导出 SVG")
+                    f.write(build_grid_paper_svg(target_path or "示例笔记", blocks, cfg))
+                self.last_status = f"已导出 A4 点阵纸（{now_hms()}）"
+                self.append_log(bridge, os.path.basename(out_path), "A4 点阵纸")
                 return {
                     "values": cfg,
                     "page": self.build_page(bridge, cfg),
@@ -1025,24 +979,17 @@ class DotMatrixPlugin:
                     "open_path": out_path,
                 }
 
-            if action_id == "write_braille_block":
-                if not target_path:
-                    self.last_status = "未检测到可写入的目标笔记"
-                    return {
-                        "values": cfg,
-                        "page": self.build_page(bridge, cfg),
-                        "status": self.last_status,
-                    }
-                changed, count = self.sync_note_braille(bridge, target_path, cfg)
-                if changed:
-                    self.last_status = f"已写入 {count} 段盲文点阵块到 {target_path}"
-                    self.append_log(bridge, target_path, "已写回盲文块")
-                else:
-                    self.last_status = f"{target_path} 的盲文点阵块已是最新"
+            if action_id == "export_css":
+                out_path = os.path.join(self.downloads_dir, "block-canvas-dots.css")
+                with open(out_path, "w", encoding="utf-8") as f:
+                    f.write(build_canvas_css(cfg))
+                self.last_status = f"已导出 Thinkly 风格网格 CSS（{now_hms()}）"
+                self.append_log(bridge, os.path.basename(out_path), "CSS 样式")
                 return {
                     "values": cfg,
                     "page": self.build_page(bridge, cfg),
                     "status": self.last_status,
+                    "reveal_path": out_path,
                 }
 
             if action_id == "reveal_downloads":
@@ -1060,18 +1007,6 @@ class DotMatrixPlugin:
                 "status": f"未知操作：{action_id}",
             }
 
-        if method == "plugin.event":
-            event_name = params.get("event")
-            note_path = (params.get("path") or "").strip()
-            if event_name == "note.saved" and note_path:
-                cfg = self.load_config(bridge)
-                if cfg.get("auto_sync_note"):
-                    changed, _ = self.sync_note_braille(bridge, note_path, cfg)
-                    if changed:
-                        self.last_status = f"保存自动同步盲文块：{note_path}（{now_hms()}）"
-                        self.append_log(bridge, note_path, "保存自动同步")
-            return {"handled": True}
-
         if method == "plugin.shutdown":
             return {"ok": True}
 
@@ -1079,5 +1014,5 @@ class DotMatrixPlugin:
 
 
 if __name__ == "__main__":
-    plugin = DotMatrixPlugin()
+    plugin = CanvasDotsPlugin()
     HostBridge().serve(plugin.handle)
