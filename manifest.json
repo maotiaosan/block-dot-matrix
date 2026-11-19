@@ -6,12 +6,12 @@
     "zh": "画布点阵",
     "en": "Canvas Dots"
   },
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "maotiaosan",
   "repo": "maotiaosan/block-dot-matrix",
   "summary": {
-    "zh": "复刻 Thinkly 编辑器无/方格/点阵画布背景，提供高对比度点阵阅读与防串行辅助",
-    "en": "Thinkly-style Off, Grid, and Dots editor canvas patterns with low-vision contrast options"
+    "zh": "为笔记铺上与行高对齐的点阵或方格，帮助弱视读者稳定追踪每一行",
+    "en": "Line-aligned dot or grid canvas for notes, helping low-vision readers track each line"
   },
   "entry": {
     "command": [
