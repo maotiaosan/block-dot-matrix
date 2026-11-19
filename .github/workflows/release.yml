@@ -1,0 +1,231 @@
+name: Daily Release
+
+on:
+  schedule:
+    # 每天 00:00 UTC（北京时间 08:00）自动检查；有新插件代码提交且当日未发版时自动递增版本号发版。
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force publish a new patch release even without new runtime changes"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugin-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Plan version and package plugin
+        id: plan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          FORCE: ${{ inputs.force == true && 'true' || 'false' }}
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os, py_compile, re, shutil, subprocess, sys
+
+          repo = os.environ["REPO"]
+          event = os.environ["EVENT_NAME"]
+          ref_name = os.environ["REF_NAME"]
+          force = os.environ.get("FORCE") == "true"
+          shanghai = datetime.timezone(datetime.timedelta(hours=8))
+
+          def sh(*args):
+              return subprocess.check_output(args, text=True).strip()
+
+          def summary(msg):
+              print(msg)
+              s_path = os.environ.get("GITHUB_STEP_SUMMARY")
+              if s_path:
+                  with open(s_path, "a", encoding="utf-8") as f:
+                      f.write(msg + "\n")
+
+          def set_output(**kwargs):
+              o_path = os.environ.get("GITHUB_OUTPUT")
+              if o_path:
+                  with open(o_path, "a", encoding="utf-8") as f:
+                      for k, v in kwargs.items():
+                          f.write(f"{k}={v}\n")
+
+          with open("manifest.json", encoding="utf-8") as f:
+              manifest = json.load(f)
+          assert manifest.get("app") == "blockmd", "manifest.app must be 'blockmd'"
+          plugin_id = manifest["id"].strip()
+          assert re.match(r"^[a-z0-9][a-z0-9-]{1,47}$", plugin_id), f"invalid id: {plugin_id}"
+          base_ver = manifest["version"].strip()
+          m_base = re.match(r"^(\d+)\.(\d+)\.(\d+)$", base_ver)
+          assert m_base, f"manifest.version must be X.Y.Z, got {base_ver}"
+          base_major, base_minor = int(m_base.group(1)), int(m_base.group(2))
+          plugin_title = (manifest.get("name", {}).get("en") or plugin_id).strip()
+
+          for p in sh("git", "ls-files").splitlines():
+              if p.endswith(".py") and os.path.exists(p):
+                  py_compile.compile(p, doraise=True)
+
+          head_sha = sh("git", "rev-parse", "HEAD")
+
+          def parse_ver(tag):
+              m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)$", (tag or "").strip())
+              return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+
+          raw_rels = sh("gh", "api", "--paginate", f"repos/{repo}/releases?per_page=100", "--jq", ".[]")
+          releases = [json.loads(line) for line in raw_rels.splitlines() if line.strip()]
+          stable = [r for r in releases if not r.get("draft") and not r.get("prerelease") and parse_ver(r.get("tag_name"))]
+          stable.sort(key=lambda r: parse_ver(r["tag_name"]))
+          previous = stable[-1] if stable else None
+
+          taken = {parse_ver(r.get("tag_name")) for r in releases if parse_ver(r.get("tag_name"))}
+          for t in sh("git", "tag", "--list", "v*").splitlines():
+              pv = parse_ver(t)
+              if pv:
+                  taken.add(pv)
+
+          def resolve_tag_sha(rel):
+              if not rel:
+                  return ""
+              tag = rel["tag_name"]
+              try:
+                  s = sh("git", "rev-parse", f"{tag}^{{commit}}")
+                  if re.match(r"^[0-9a-f]{40}$", s):
+                      return s
+              except Exception:
+                  pass
+              try:
+                  s = sh("gh", "api", f"repos/{repo}/commits/{tag}", "--jq", ".sha")
+                  if re.match(r"^[0-9a-f]{40}$", s):
+                      return s
+              except Exception:
+                  pass
+              return ""
+
+          if event == "push" and ref_name.startswith("v"):
+              pv = parse_ver(ref_name)
+              assert pv, f"Tag {ref_name} must match vX.Y.Z"
+              version = f"{pv[0]}.{pv[1]}.{pv[2]}"
+              tag = f"v{version}"
+              prev_for_notes = next((r for r in reversed(stable) if r["tag_name"] != tag), None)
+              prev_sha = resolve_tag_sha(prev_for_notes)
+          else:
+              if event == "schedule" and not force and previous and previous.get("published_at"):
+                  today = datetime.datetime.now(shanghai).strftime("%Y-%m-%d")
+                  pub_dt = datetime.datetime.fromisoformat(previous["published_at"].replace("Z", "+00:00")).astimezone(shanghai)
+                  if today == pub_dt.strftime("%Y-%m-%d"):
+                      summary(f"今日（{today}）已发布过 {previous['tag_name']}，每日定时最多自动发布一次，本次跳过。")
+                      set_output(should_release="no")
+                      sys.exit(0)
+
+              prev_sha = resolve_tag_sha(previous)
+              if prev_sha and prev_sha == head_sha and not force:
+                  summary(f"当前 HEAD ({head_sha[:7]}) 与最新 Release {previous['tag_name']} 一致，跳过发版。")
+                  set_output(should_release="no")
+                  sys.exit(0)
+
+              if prev_sha and not force:
+                  is_anc = subprocess.call(["git", "merge-base", "--is-ancestor", prev_sha, head_sha]) == 0
+                  if is_anc:
+                      changed = [
+                          p for p in sh("git", "diff", "--name-only", prev_sha, head_sha).splitlines()
+                          if p and not p.startswith(".github/") and p not in {".gitignore", "README.md", "LICENSE"}
+                      ]
+                      if not changed:
+                          summary(f"自 {previous['tag_name']} 以来仅包含 CI 或文档变更，无需发包，本次跳过。")
+                          set_output(should_release="no")
+                          sys.exit(0)
+                      subjects = sh("git", "log", "--no-merges", "--format=%s", f"{prev_sha}..{head_sha}").splitlines()
+                      if subjects and all("[skip release]" in s.lower() for s in subjects):
+                          summary("区间内提交均标记 [skip release]，本次跳过。")
+                          set_output(should_release="no")
+                          sys.exit(0)
+
+              commit_count = int(sh("git", "rev-list", "--count", head_sha))
+              cand = (base_major, base_minor, commit_count)
+              highest = max(taken) if taken else None
+              if highest and cand <= highest:
+                  cand = (highest[0], highest[1], highest[2] + 1)
+              while cand in taken:
+                  cand = (cand[0], cand[1], cand[2] + 1)
+              version = f"{cand[0]}.{cand[1]}.{cand[2]}"
+              tag = f"v{version}"
+
+          notes_lines = []
+          if prev_sha and prev_sha != head_sha and subprocess.call(["git", "merge-base", "--is-ancestor", prev_sha, head_sha]) == 0:
+              raw_log = sh("git", "log", "--no-merges", "--reverse", "--format=%h%x00%s", f"{prev_sha}..{head_sha}")
+              for line in raw_log.splitlines():
+                  if not line.strip():
+                      continue
+                  c_sha, subj = line.split("\x00", 1)
+                  if re.match(r"^(?:ci|docs)(?:\([^)]*\))?:\s", subj, re.I):
+                      continue
+                  notes_lines.append(f"- {subj} (`{c_sha}`)")
+          if not notes_lines:
+              notes_lines.append(f"- Automated release from `{head_sha[:7]}`.")
+          with open("release-notes.md", "w", encoding="utf-8") as f:
+              f.write("## Changes\n\n" + "\n".join(notes_lines) + "\n")
+
+          pkg_dir = os.path.join("dist", plugin_id)
+          shutil.rmtree("dist", ignore_errors=True)
+          os.makedirs(pkg_dir, exist_ok=True)
+          tar_bytes = subprocess.check_output(["git", "archive", "--format=tar", head_sha])
+          subprocess.run(["tar", "-xf", "-", "-C", pkg_dir], input=tar_bytes, check=True)
+          shutil.rmtree(os.path.join(pkg_dir, ".github"), ignore_errors=True)
+          for meta_file in (".gitignore",):
+              p = os.path.join(pkg_dir, meta_file)
+              if os.path.exists(p):
+                  os.remove(p)
+
+          manifest["version"] = version
+          with open(os.path.join(pkg_dir, "manifest.json"), "w", encoding="utf-8") as f:
+              json.dump(manifest, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+
+          archive_name = f"{plugin_id}-{tag}.tar.gz"
+          subprocess.check_call(["tar", "-czf", archive_name, "-C", "dist", plugin_id])
+
+          summary(f"准备发布 {plugin_title} {tag} (archive={archive_name}, commit={head_sha[:7]})")
+          set_output(
+              should_release="yes",
+              version=version,
+              tag=tag,
+              title=f"{plugin_title} {version}",
+              archive=archive_name,
+              head_sha=head_sha,
+          )
+          PY
+
+      - name: Publish GitHub Release
+        if: steps.plan.outputs.should_release == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          TITLE: ${{ steps.plan.outputs.title }}
+          ARCHIVE: ${{ steps.plan.outputs.archive }}
+          HEAD_SHA: ${{ steps.plan.outputs.head_sha }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" --title "${TITLE}" --notes-file release-notes.md --draft=false --latest
+            gh release upload "${TAG}" "${ARCHIVE}" --clobber
+          else
+            gh release create "${TAG}" "${ARCHIVE}" \
+              --target "${HEAD_SHA}" \
+              --title "${TITLE}" \
+              --notes-file release-notes.md \
+              --latest
+          fi
